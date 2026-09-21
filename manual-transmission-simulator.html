@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Manual Transmission Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#131519; --panel:#1d2025; --panel-2:#25292f; --ink:#eef0f2; --muted:#868d96;
+    --amber:#e8a33d; --teal:#3fa796; --red:#e5484d; --line:#33383f; --radius:12px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink); font-family:'Inter',system-ui,sans-serif; height:100%;}
+  body{
+    background:radial-gradient(ellipse at top, #1a1d22 0%, var(--bg) 60%);
+    display:flex; justify-content:center; user-select:none;
+    height:100dvh; overflow-y:auto;
+  }
+  .app{width:100%; max-width:460px; height:100dvh; display:flex; flex-direction:column;
+    padding:8px 10px calc(8px + env(safe-area-inset-bottom)); gap:6px;}
+
+  .topbar{display:flex; align-items:center; justify-content:space-between; flex-shrink:0;}
+  .topbar h1{font-family:'Rajdhani',sans-serif; font-weight:700; font-size:17px; letter-spacing:0.4px; margin:0;}
+  .icon-btn{width:30px; height:30px; border-radius:8px; background:var(--panel); border:1px solid var(--line);
+    color:var(--muted); display:flex; align-items:center; justify-content:center; font-size:14px; cursor:pointer; flex-shrink:0;}
+  .icon-row{display:flex; gap:6px;}
+
+  .top-row{display:flex; gap:8px; flex-shrink:0;}
+  .mode-toggle{flex:1; display:flex; background:var(--panel); border-radius:9px; padding:2px; border:1px solid var(--line);}
+  .mode-toggle button{flex:1; border:none; background:transparent; color:var(--muted);
+    font-family:'Rajdhani',sans-serif; font-weight:600; font-size:13px; padding:6px 4px; border-radius:7px; cursor:pointer;}
+  .mode-toggle button.active{background:var(--panel-2); color:var(--ink);}
+  .mode-toggle button.active.uphill-active{color:var(--amber);}
+  .ignition{display:flex; align-items:center; gap:5px; background:var(--panel); border:1px solid var(--line);
+    border-radius:9px; padding:0 12px; cursor:pointer; font-family:'Rajdhani',sans-serif; font-weight:600; font-size:13px; color:var(--ink);}
+  .ignition .dot{width:7px; height:7px; border-radius:50%; background:var(--muted);}
+  .ignition.on .dot{background:var(--teal); box-shadow:0 0 8px var(--teal);}
+  .ignition.stalled .dot{background:var(--red); box-shadow:0 0 8px var(--red);}
+
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:9px 10px; flex-shrink:0;}
+  .dash-panel{display:flex; flex-direction:column; gap:4px;}
+
+  .gauges{display:flex; gap:6px; align-items:center;}
+  .gauge-box{flex:1; text-align:center; min-width:0;}
+  .gauge-box svg{width:100%; height:auto; display:block; max-height:74px;}
+  .gauge-value{font-family:'Rajdhani',sans-serif; font-weight:700; font-size:19px; margin-top:-8px; line-height:1;}
+  .gauge-unit{font-size:9.5px; color:var(--muted); font-weight:500;}
+
+  .status-line{display:flex; align-items:center; gap:8px; padding-top:4px; border-top:1px solid var(--line);}
+  .gear-badge{width:36px; height:36px; border-radius:8px; background:var(--panel-2); display:flex; align-items:center; justify-content:center;
+    font-family:'Rajdhani',sans-serif; font-weight:700; font-size:17px; border:1px solid var(--line); flex-shrink:0;}
+  .msg{flex:1; font-size:11px; color:var(--muted); line-height:1.3;}
+  .msg.warn{color:var(--amber);} .msg.danger{color:var(--red);} .msg.good{color:var(--teal);}
+
+  .road-wrap{position:relative; height:30px; border-radius:7px; overflow:hidden; background:#0e1013;}
+  .road-wrap svg{width:100%; height:100%; display:block;}
+  .roll-warning{position:absolute; top:2px; right:6px; font-family:'Rajdhani',sans-serif; font-weight:700; font-size:10px; color:var(--red); opacity:0; transition:opacity .15s;}
+  .roll-warning.show{opacity:1;}
+
+  .controls-panel{display:flex; gap:8px; flex:1; min-height:0;}
+  .col-title{font-family:'Rajdhani',sans-serif; font-weight:600; font-size:10.5px; color:var(--muted); letter-spacing:0.4px; margin:0 0 4px;}
+  .gearbox-col{flex:1; display:flex; flex-direction:column; min-height:0;}
+  .shift-gate{position:relative; flex:1; min-height:100px; background:var(--panel-2); border-radius:10px; border:1px solid var(--line); touch-action:none;}
+  .gate-labels{position:absolute; inset:0;}
+  .gate-labels span{position:absolute; transform:translate(-50%,-50%); font-family:'Rajdhani',sans-serif; font-weight:600; font-size:11.5px; color:var(--muted);}
+  .stick-knob{
+    position:absolute; width:38px; height:38px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #f3d6a6, var(--amber) 70%);
+    box-shadow:0 4px 10px rgba(0,0,0,0.45), inset 0 0 0 3px rgba(0,0,0,0.15);
+    transform:translate(-50%,-50%);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Rajdhani',sans-serif; font-weight:700; font-size:14px; color:#26190a;
+    cursor:grab; touch-action:none; transition:left .16s ease, top .16s ease, background .1s;
+    left:50%; top:50%; z-index:3;
+  }
+  .stick-knob.dragging{transition:none; cursor:grabbing;}
+  .stick-knob.blocked-flash{background:radial-gradient(circle at 35% 30%, #ffb3b4, var(--red) 70%);}
+  .clutch-hint{font-size:9.5px; color:var(--muted); margin-top:4px; text-align:center; line-height:1.3;}
+
+  .pedals-col{flex:1.35; display:flex; flex-direction:column; min-height:0;}
+  .pedals-row{display:flex; gap:5px; flex:1; min-height:0;}
+  .pedal-col{flex:1; display:flex; flex-direction:column; align-items:center; min-width:0;}
+  .pedal-name{font-family:'Rajdhani',sans-serif; font-weight:600; font-size:10px; letter-spacing:0.2px; text-align:center; white-space:nowrap;}
+  .pedal-pct{font-size:9.5px; color:var(--muted); margin-bottom:3px;}
+  .slide-track{position:relative; width:100%; max-width:42px; flex:1; min-height:60px; background:var(--panel-2);
+    border-radius:9px; border:1px solid var(--line); overflow:hidden; touch-action:none; cursor:pointer;}
+  .slide-fill{position:absolute; bottom:0; left:0; width:100%; height:0%; border-radius:0 0 8px 8px;}
+  .slide-fill.clutch{background:linear-gradient(180deg, #4fc4b0, var(--teal));}
+  .slide-fill.brake{background:linear-gradient(180deg, #ff7a7d, var(--red));}
+  .slide-fill.gas{background:linear-gradient(180deg, #ffc36b, var(--amber));}
+  .slide-fill.hand{background:linear-gradient(180deg, #b9bfc6, #7d848c);}
+  .slide-thumb{position:absolute; left:2px; right:2px; height:14px; border-radius:5px; background:#e9edf0; border:2px solid #0e1013; bottom:0%; transform:translateY(50%);}
+
+  .modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:50; padding:20px;}
+  .modal-backdrop.open{display:flex;}
+  .modal-box{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; max-width:420px; width:100%; max-height:80dvh; overflow-y:auto;}
+  .modal-box h2{font-family:'Rajdhani',sans-serif; font-size:16px; margin:0 0 8px;}
+  .modal-box p{font-size:12.5px; color:var(--muted); line-height:1.55; margin:0 0 8px;}
+  .modal-box b{color:var(--ink);}
+  .modal-box a{color:var(--amber); text-decoration:none; font-weight:600;}
+  .modal-box a:hover{text-decoration:underline;}
+  .credit-line{font-size:12px; color:var(--muted); margin:2px 0 14px; padding-bottom:12px; border-bottom:1px solid var(--line);}
+  .modal-close{width:100%; margin-top:6px; padding:9px; border-radius:9px; background:var(--panel-2); border:1px solid var(--line); color:var(--ink);
+    font-family:'Rajdhani',sans-serif; font-weight:600; font-size:13px; cursor:pointer;}
+  .desktop-warn-icon{font-size:34px; text-align:center; margin-bottom:4px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1>Manual Transmission Simulator</h1>
+    <div class="icon-row">
+      <div class="icon-btn" id="soundBtn">🔊</div>
+      <div class="icon-btn" id="infoBtn">?</div>
+      <div class="icon-btn" id="resetBtn">⟲</div>
+    </div>
+  </div>
+
+  <div class="top-row">
+    <div class="mode-toggle">
+      <button id="modeFlat" class="active">Flat road</button>
+      <button id="modeHill">Uphill</button>
+    </div>
+    <div class="ignition" id="ignitionBtn"><span class="dot"></span><span id="ignitionLabel">Start</span></div>
+  </div>
+
+  <div class="panel dash-panel">
+    <div class="gauges">
+      <div class="gauge-box">
+        <svg viewBox="0 0 200 100">
+          <path d="M20,90 A80,80 0 0 1 180,90" pathLength="100" fill="none" stroke="#33383f" stroke-width="10" stroke-linecap="round"/>
+          <path d="M20,90 A80,80 0 0 1 180,90" pathLength="100" fill="none" stroke="#e5484d" stroke-width="10" stroke-linecap="round" stroke-dasharray="14 100" stroke-dashoffset="-86" opacity="0.55"/>
+          <path id="rpmArc" d="M20,90 A80,80 0 0 1 180,90" pathLength="100" fill="none" stroke="#e8a33d" stroke-width="10" stroke-linecap="round" stroke-dasharray="0 100"/>
+          <g id="rpmNeedle" style="transform-origin:100px 90px; transform:rotate(-90deg); transition:transform .08s linear;">
+            <line x1="100" y1="90" x2="100" y2="26" stroke="#eef0f2" stroke-width="2.5" stroke-linecap="round"/>
+          </g>
+          <circle cx="100" cy="90" r="4.5" fill="#eef0f2"/>
+        </svg>
+        <div class="gauge-value"><span id="rpmVal">0</span></div>
+        <div class="gauge-unit">RPM ×100</div>
+      </div>
+      <div class="gauge-box">
+        <svg viewBox="0 0 200 100">
+          <path d="M20,90 A80,80 0 0 1 180,90" pathLength="100" fill="none" stroke="#33383f" stroke-width="10" stroke-linecap="round"/>
+          <path id="spdArc" d="M20,90 A80,80 0 0 1 180,90" pathLength="100" fill="none" stroke="#3fa796" stroke-width="10" stroke-linecap="round" stroke-dasharray="0 100"/>
+          <g id="spdNeedle" style="transform-origin:100px 90px; transform:rotate(-90deg); transition:transform .08s linear;">
+            <line x1="100" y1="90" x2="100" y2="26" stroke="#eef0f2" stroke-width="2.5" stroke-linecap="round"/>
+          </g>
+          <circle cx="100" cy="90" r="4.5" fill="#eef0f2"/>
+        </svg>
+        <div class="gauge-value"><span id="spdVal">0</span></div>
+        <div class="gauge-unit">km/h</div>
+      </div>
+    </div>
+
+    <div class="status-line">
+      <div class="gear-badge" id="gearBadge">N</div>
+      <div class="msg" id="msgLine">Press Start to turn the engine on.</div>
+    </div>
+
+    <div class="road-wrap">
+      <span class="roll-warning" id="rollWarning">⚠ ROLLING BACK</span>
+      <svg id="roadSvg" viewBox="0 0 400 40" preserveAspectRatio="none"></svg>
+    </div>
+  </div>
+
+  <div class="panel controls-panel">
+    <div class="gearbox-col">
+      <div class="col-title">Gearbox</div>
+      <div class="shift-gate" id="shiftGate">
+        <div class="gate-labels">
+          <span style="left:20%; top:14%;">1</span>
+          <span style="left:50%; top:14%;">3</span>
+          <span style="left:80%; top:14%;">5</span>
+          <span style="left:50%; top:50%;">N</span>
+          <span style="left:20%; top:86%;">2</span>
+          <span style="left:50%; top:86%;">4</span>
+          <span style="left:80%; top:86%;">R</span>
+        </div>
+        <div class="stick-knob" id="stickKnob">N</div>
+      </div>
+      <div class="clutch-hint" id="clutchHint">Press clutch to shift</div>
+    </div>
+
+    <div class="pedals-col">
+      <div class="col-title">Pedals &amp; handbrake</div>
+      <div class="pedals-row">
+        <div class="pedal-col">
+          <div class="pedal-name">Clutch</div>
+          <div class="pedal-pct" id="clutchPct">0%</div>
+          <div class="slide-track" id="clutchTrack"><div class="slide-fill clutch" id="clutchFill"></div><div class="slide-thumb" id="clutchThumb"></div></div>
+        </div>
+        <div class="pedal-col">
+          <div class="pedal-name">Brake</div>
+          <div class="pedal-pct" id="brakePct">0%</div>
+          <div class="slide-track" id="brakeTrack"><div class="slide-fill brake" id="brakeFill"></div><div class="slide-thumb" id="brakeThumb"></div></div>
+        </div>
+        <div class="pedal-col">
+          <div class="pedal-name">Gas</div>
+          <div class="pedal-pct" id="gasPct">0%</div>
+          <div class="slide-track" id="gasTrack"><div class="slide-fill gas" id="gasFill"></div><div class="slide-thumb" id="gasThumb"></div></div>
+        </div>
+        <div class="pedal-col">
+          <div class="pedal-name">Hand&shy;brake</div>
+          <div class="pedal-pct" id="handPct">0%</div>
+          <div class="slide-track" id="handTrack"><div class="slide-fill hand" id="handFill"></div><div class="slide-thumb" id="handThumb"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="infoModal">
+  <div class="modal-box">
+    <h2>How to use</h2>
+    <p class="credit-line">Find more of my projects <a href="https://baniisama.github.io/" target="_blank" rel="noopener noreferrer">Here</a></p>
+    <p><b>Starting:</b> shift to Neutral or press the clutch fully, then tap Start.</p>
+    <p><b>Pulling away:</b> pick 1st gear, rev to around a quarter to a third throttle, then ease the clutch up slowly.</p>
+    <p><b>Shifting:</b> press the clutch most of the way down, drag the stick into the next gate, then release the clutch smoothly while easing on the gas.</p>
+    <p><b>Handbrake:</b> slide it up to hold the car without your foot on the brake.</p>
+    <p><b>Uphill mode:</b> gravity pulls the car backward on the slope. Rev to roughly 1500–2000 RPM, ease the clutch to the bite point, and roll onto the gas as you release the brake</p>
+    <p><b>Reverse:</b> only selectable once the car is fully stopped.</p>
+    <p>All controls respond to multiple fingers at once.</p>
+    <p>Maths made with claudecode</p>
+    <button class="modal-close" id="modalClose">Alright</button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="desktopWarnModal">
+  <div class="modal-box">
+    <div class="desktop-warn-icon">⚠</div>
+    <h2>Desktop not supported</h2>
+    <p>This webapp is meant to be used with multiple gestures at the same time, the pedals, handbrake and gear stick are all drag controls meant for a phone screen. On a desktop with a mouse it may feel cramped or awkward to control precisely.</p>
+    <p>For a better experience, open this page on your phone.</p>
+    <button class="modal-close" id="desktopWarnClose">Continue anyway</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---------- constants (tuned so a proper hill-start technique reliably works) ----------
+  const IDLE_RPM=800, REDLINE=6500, RPM_LIMIT=6800, STALL_RPM=350;
+  const ENGINE_INERTIA=0.22, MAX_TORQUE=205, CLUTCH_CAPACITY=170, SLIP_RANGE=900;
+  const GEAR_RATIOS={"1":3.6,"2":2.05,"3":1.4,"4":1.0,"5":0.8,"R":-3.6,"N":0};
+  const FINAL_DRIVE=3.9, WHEEL_R=0.3, MASS=1250, G=9.81;
+  const SLOPE_DEG=7, MAX_BRAKE_FORCE=6200, MAX_HANDBRAKE_FORCE=4200, ROLL_RESIST=200, DRAG=0.42;
+  const SHIFT_CLUTCH_THRESH=68;
+  const DT=0.05;
+
+  // ---------- state ----------
+  let mode='flat';
+  let ignition=false, stalled=false;
+  let rpm=0, speed=0;
+  let gear='N';
+  let clutchPedal=0, brakePedal=0, gasPedal=0, handbrake=0;
+  let distance=0, rollSinceStop=0;
+
+  const $=id=>document.getElementById(id);
+  const modeFlatBtn=$('modeFlat'), modeHillBtn=$('modeHill');
+  const ignitionBtn=$('ignitionBtn'), ignitionLabel=$('ignitionLabel');
+  const gearBadge=$('gearBadge'), msgLine=$('msgLine');
+  const rpmArc=$('rpmArc'), spdArc=$('spdArc'), rpmNeedle=$('rpmNeedle'), spdNeedle=$('spdNeedle');
+  const rpmVal=$('rpmVal'), spdVal=$('spdVal');
+  const rollWarning=$('rollWarning');
+  const roadSvg=$('roadSvg');
+  const clutchHint=$('clutchHint');
+  const stickKnob=$('stickKnob'), shiftGate=$('shiftGate');
+
+  function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+  function setMsg(text, kind){ msgLine.textContent=text; msgLine.className='msg'+(kind?(' '+kind):''); }
+
+  // ---------- custom multitouch-friendly vertical sliders ----------
+  function makeVSlider(trackEl, fillEl, thumbEl, pctEl, onChange, initial){
+    let value=initial||0;
+    function apply(){ fillEl.style.height=value+'%'; thumbEl.style.bottom=value+'%'; pctEl.textContent=Math.round(value)+'%'; }
+    function setFromClientY(clientY){
+      const rect=trackEl.getBoundingClientRect();
+      const frac=1-(clientY-rect.top)/rect.height;
+      value=clamp(Math.round(frac*100),0,100);
+      apply(); onChange(value);
+    }
+    trackEl.addEventListener('pointerdown', e=>{ trackEl.setPointerCapture(e.pointerId); setFromClientY(e.clientY); e.preventDefault(); });
+    trackEl.addEventListener('pointermove', e=>{
+      if(trackEl.hasPointerCapture && !trackEl.hasPointerCapture(e.pointerId)) return;
+      setFromClientY(e.clientY); e.preventDefault();
+    });
+    function release(e){ try{ trackEl.releasePointerCapture(e.pointerId); }catch(err){} }
+    trackEl.addEventListener('pointerup', release);
+    trackEl.addEventListener('pointercancel', release);
+    apply();
+    return { set(v){ value=clamp(v,0,100); apply(); onChange(value); }, get(){ return value; } };
+  }
+  const clutchCtl=makeVSlider($('clutchTrack'),$('clutchFill'),$('clutchThumb'),$('clutchPct'), v=>clutchPedal=v, 0);
+  const brakeCtl=makeVSlider($('brakeTrack'),$('brakeFill'),$('brakeThumb'),$('brakePct'), v=>brakePedal=v, 0);
+  const gasCtl=makeVSlider($('gasTrack'),$('gasFill'),$('gasThumb'),$('gasPct'), v=>gasPedal=v, 0);
+  const handCtl=makeVSlider($('handTrack'),$('handFill'),$('handThumb'),$('handPct'), v=>handbrake=v, 0);
+
+  // ---------- mode ----------
+  function setMode(m){
+    mode=m;
+    modeFlatBtn.classList.toggle('active', m==='flat');
+    modeHillBtn.classList.toggle('active', m==='hill');
+    modeHillBtn.classList.toggle('uphill-active', m==='hill');
+    resetSim(false);
+    if(m==='hill') setMsg('Uphill mode. Rev to ~1500-2000 RPM and ease the clutch to the bite point to climb.');
+    else setMsg('Flat road mode. Press Start to turn the engine on.');
+  }
+  modeFlatBtn.addEventListener('click',()=>setMode('flat'));
+  modeHillBtn.addEventListener('click',()=>setMode('hill'));
+
+  // ---------- ignition ----------
+  ignitionBtn.addEventListener('click',()=>{
+    if(ignition){ ignition=false; setMsg('Engine switched off.'); }
+    else {
+      if(gear!=='N' && clutchPedal<SHIFT_CLUTCH_THRESH){
+        setMsg('Press the clutch pedal or shift to Neutral before starting the engine.','warn'); return;
+      }
+      ignition=true; stalled=false; rpm=IDLE_RPM;
+      setMsg('Engine started. Idling at '+IDLE_RPM+' RPM.','good');
+    }
+  });
+
+  // ---------- gear stick (drag + snap) ----------
+  const GATE_NODES={
+    "1":{x:0.20,y:0.14}, "3":{x:0.50,y:0.14}, "5":{x:0.80,y:0.14},
+    "N":{x:0.50,y:0.50},
+    "2":{x:0.20,y:0.86}, "4":{x:0.50,y:0.86}, "R":{x:0.80,y:0.86}
+  };
+  let dragging=false;
+  function nodePixel(g){ const rect=shiftGate.getBoundingClientRect(); const n=GATE_NODES[g]; return { x:n.x*rect.width, y:n.y*rect.height }; }
+  function placeKnobAtGear(g){ const p=nodePixel(g); stickKnob.style.left=p.x+'px'; stickKnob.style.top=p.y+'px'; stickKnob.textContent=g; }
+  function nearestGear(px,py){
+    let best=null, bestD=Infinity;
+    for(const g in GATE_NODES){ const p=nodePixel(g); const d=(p.x-px)*(p.x-px)+(p.y-py)*(p.y-py); if(d<bestD){ bestD=d; best=g; } }
+    return best;
+  }
+  stickKnob.addEventListener('pointerdown', e=>{ dragging=true; stickKnob.classList.add('dragging'); stickKnob.setPointerCapture(e.pointerId); e.preventDefault(); });
+  stickKnob.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const rect=shiftGate.getBoundingClientRect();
+    const px=clamp(e.clientX-rect.left,0,rect.width), py=clamp(e.clientY-rect.top,0,rect.height);
+    stickKnob.style.left=px+'px'; stickKnob.style.top=py+'px'; e.preventDefault();
+  });
+  function endDrag(e){
+    if(!dragging) return;
+    dragging=false; stickKnob.classList.remove('dragging');
+    try{ stickKnob.releasePointerCapture(e.pointerId); }catch(err){}
+    const rect=shiftGate.getBoundingClientRect();
+    const px=clamp((parseFloat(stickKnob.style.left)||rect.width/2),0,rect.width);
+    const py=clamp((parseFloat(stickKnob.style.top)||rect.height/2),0,rect.height);
+    attemptShift(nearestGear(px,py));
+  }
+  stickKnob.addEventListener('pointerup', endDrag);
+  stickKnob.addEventListener('pointercancel', endDrag);
+
+  function attemptShift(g){
+    if(g===gear){ placeKnobAtGear(gear); return; }
+    if(clutchPedal < SHIFT_CLUTCH_THRESH){ setMsg('Press the clutch pedal further down to shift gears.','warn'); flashBlocked(); placeKnobAtGear(gear); return; }
+    if(g==='R' && Math.abs(speed)>0.5){ setMsg('Bring the car to a complete stop before selecting Reverse.','warn'); flashBlocked(); placeKnobAtGear(gear); return; }
+    if(gear==='R' && g!=='R' && Math.abs(speed)>0.5){ setMsg('Bring the car to a complete stop before shifting out of Reverse.','warn'); flashBlocked(); placeKnobAtGear(gear); return; }
+    gear=g; placeKnobAtGear(gear); gearBadge.textContent=gear;
+    setMsg(g==='N' ? 'Shifted to Neutral.' : 'Shifted into gear '+g+'.');
+  }
+  function flashBlocked(){
+    stickKnob.classList.add('blocked-flash'); clutchHint.style.color='var(--amber)';
+    setTimeout(()=>{ stickKnob.classList.remove('blocked-flash'); clutchHint.style.color=''; },400);
+  }
+
+  // ---------- reset ----------
+  $('resetBtn').addEventListener('click',()=>resetSim(true));
+  function resetSim(announce){
+    ignition=false; stalled=false; rpm=0; speed=0; gear='N'; distance=0; rollSinceStop=0;
+    clutchCtl.set(0); brakeCtl.set(0); gasCtl.set(0); handCtl.set(0);
+    gearBadge.textContent='N'; placeKnobAtGear('N');
+    if(announce) setMsg('Simulation reset. Press Start to turn the engine on.');
+  }
+
+  // ---------- info modal ----------
+  const infoModal=$('infoModal');
+  $('infoBtn').addEventListener('click',()=>infoModal.classList.add('open'));
+  $('modalClose').addEventListener('click',()=>infoModal.classList.remove('open'));
+  infoModal.addEventListener('click', e=>{ if(e.target===infoModal) infoModal.classList.remove('open'); });
+
+  // ---------- desktop warning ----------
+  function isLikelyDesktop(){
+    const hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0;
+    const fineHover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    const wide = window.innerWidth > 820;
+    return !hasTouch && fineHover && wide;
+  }
+  const desktopWarnModal=$('desktopWarnModal');
+  if(isLikelyDesktop()) desktopWarnModal.classList.add('open');
+  $('desktopWarnClose').addEventListener('click',()=>desktopWarnModal.classList.remove('open'));
+  desktopWarnModal.addEventListener('click', e=>{ if(e.target===desktopWarnModal) desktopWarnModal.classList.remove('open'); });
+
+  // ---------- engine audio ----------
+  let audioCtx=null, oscA, oscB, oscSub, filterNode, gainNode, audioStarted=false, soundOn=true;
+  function initAudio(){
+    if(audioStarted) return;
+    try{
+      audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      oscA=audioCtx.createOscillator(); oscA.type='sawtooth';
+      oscB=audioCtx.createOscillator(); oscB.type='square';
+      oscSub=audioCtx.createOscillator(); oscSub.type='sine';
+      filterNode=audioCtx.createBiquadFilter(); filterNode.type='lowpass'; filterNode.frequency.value=500;
+      gainNode=audioCtx.createGain(); gainNode.gain.value=0;
+      oscA.frequency.value=45; oscB.frequency.value=46; oscSub.frequency.value=22;
+      oscA.connect(filterNode); oscB.connect(filterNode); oscSub.connect(filterNode);
+      filterNode.connect(gainNode); gainNode.connect(audioCtx.destination);
+      oscA.start(); oscB.start(); oscSub.start();
+      audioStarted=true;
+    }catch(err){ audioStarted=false; }
+  }
+  function updateAudio(){
+    if(!audioStarted || !audioCtx) return;
+    if(audioCtx.state==='suspended'){ audioCtx.resume(); }
+    const now=audioCtx.currentTime;
+    const runningLoud = ignition && soundOn;
+    const revFrac = clamp(rpm/REDLINE,0,1.1);
+    const targetGain = runningLoud ? clamp(0.045 + (gasPedal/100)*0.10 + revFrac*0.05, 0, 0.2) : 0;
+    gainNode.gain.setTargetAtTime(targetGain, now, 0.06);
+    const f = 32 + revFrac*235;
+    oscA.frequency.setTargetAtTime(f, now, 0.045);
+    oscB.frequency.setTargetAtTime(f*1.012+3, now, 0.045);
+    oscSub.frequency.setTargetAtTime(f*0.5, now, 0.045);
+    filterNode.frequency.setTargetAtTime(350 + (gasPedal/100)*1600 + revFrac*1100, now, 0.06);
+  }
+  const soundBtn=$('soundBtn');
+  soundBtn.addEventListener('click', ()=>{
+    initAudio();
+    soundOn=!soundOn;
+    soundBtn.textContent = soundOn ? '🔊' : '🔇';
+  });
+  document.addEventListener('pointerdown', initAudio, { once:true });
+
+  // ---------- physics ----------
+  function engineFriction(r){ return 0.021*r + 5; }
+  function idleAssist(r){
+    const frictionAtIdle=0.021*IDLE_RPM+5;
+    let t = frictionAtIdle + 0.15*(IDLE_RPM-r);
+    return Math.max(0, Math.min(60,t));
+  }
+  function throttleTorque(r,thr){
+    if(r>REDLINE) return 0;
+    const norm=Math.min(r/REDLINE,1.05);
+    const curve=Math.max(0, Math.sin(Math.PI*Math.min(norm*1.15,1)));
+    return MAX_TORQUE*thr*curve;
+  }
+
+  function tick(){
+    const engagement = (gear==='N') ? 0 : clamp(1-clutchPedal/100,0,1);
+    const throttle = gasPedal/100;
+    const brake = brakePedal/100;
+    let driveForce=0;
+
+    if(ignition){
+      if(gear==='N' || engagement<=0.001){
+        const torque = throttleTorque(rpm,throttle) + idleAssist(rpm) - engineFriction(rpm);
+        rpm += (torque/ENGINE_INERTIA)*DT;
+      } else {
+        const totalRatio = GEAR_RATIOS[gear]*FINAL_DRIVE;
+        const wheelAngSpeed = speed/WHEEL_R;
+        const effRPM = wheelAngSpeed*totalRatio*(60/(2*Math.PI));
+        const slip = rpm-effRPM;
+        const maxCT = CLUTCH_CAPACITY*engagement;
+        const clutchTorque = maxCT*clamp(slip/SLIP_RANGE,-1,1);
+        const netEngineTorque = throttleTorque(rpm,throttle)+idleAssist(rpm)-engineFriction(rpm)-clutchTorque;
+        rpm += (netEngineTorque/ENGINE_INERTIA)*DT;
+        driveForce = clutchTorque*totalRatio/WHEEL_R;
+      }
+      rpm = clamp(rpm,0,RPM_LIMIT);
+      if(rpm < STALL_RPM && gear!=='N' && engagement>0.25){
+        ignition=false; stalled=true; rpm=0; driveForce=0;
+        setMsg('Engine stalled — you released the clutch too fast without enough gas.','danger');
+      }
+    } else {
+      rpm = Math.max(0, rpm-4200*DT); driveForce=0;
+    }
+
+    let Fnet=driveForce;
+    if(mode==='hill'){ Fnet -= MASS*G*Math.sin(SLOPE_DEG*Math.PI/180); }
+    if(speed>0.02) Fnet -= ROLL_RESIST;
+    else if(speed<-0.02) Fnet += ROLL_RESIST;
+    Fnet -= DRAG*speed*Math.abs(speed);
+
+    const Fbrake = brake*MAX_BRAKE_FORCE + (handbrake/100)*MAX_HANDBRAKE_FORCE;
+    if(Math.abs(speed)>0.02){ Fnet -= Math.sign(speed)*Fbrake; }
+    else { if(Fnet>0) Fnet=Math.max(0,Fnet-Fbrake); else Fnet=Math.min(0,Fnet+Fbrake); }
+
+    const accel=Fnet/MASS;
+    speed += accel*DT;
+    if(Math.abs(speed)<0.02 && Math.abs(driveForce)<4 && Math.abs(Fnet)<4) speed=0;
+
+    distance += speed*DT;
+    if(speed < -0.03){ rollSinceStop += -speed*DT; } else if(Math.abs(speed)<0.02){ rollSinceStop=0; }
+
+    render();
+  }
+
+  // ---------- rendering ----------
+  const roadStripes=[];
+  function buildRoad(){
+    roadSvg.innerHTML='';
+    const ns='http://www.w3.org/2000/svg';
+    const bg=document.createElementNS(ns,'rect');
+    bg.setAttribute('x',0); bg.setAttribute('y',0); bg.setAttribute('width',400); bg.setAttribute('height',40);
+    bg.setAttribute('fill', mode==='hill' ? '#1a2620' : '#14181c');
+    roadSvg.appendChild(bg);
+    if(mode==='hill'){
+      const slope=document.createElementNS(ns,'polygon');
+      slope.setAttribute('points','0,40 400,6 400,40');
+      slope.setAttribute('fill','#223226');
+      roadSvg.appendChild(slope);
+    }
+    const road=document.createElementNS(ns,'rect');
+    road.setAttribute('x',0); road.setAttribute('y', mode==='hill'?18:26); road.setAttribute('width',400); road.setAttribute('height',14);
+    road.setAttribute('fill','#2a2e33'); road.setAttribute('transform', mode==='hill' ? 'skewY(-4)':'');
+    roadSvg.appendChild(road);
+    roadStripes.length=0;
+    for(let i=0;i<8;i++){
+      const s=document.createElementNS(ns,'rect');
+      s.setAttribute('width',18); s.setAttribute('height',2);
+      s.setAttribute('fill','#565c63');
+      s.setAttribute('y', mode==='hill' ? 24 : 32);
+      roadSvg.appendChild(s);
+      roadStripes.push(s);
+    }
+    const car=document.createElementNS(ns,'rect');
+    car.setAttribute('width',30); car.setAttribute('height',12); car.setAttribute('rx',3);
+    car.setAttribute('fill','#e8a33d');
+    car.setAttribute('x',185); car.setAttribute('y', mode==='hill' ? 10 : 20);
+    roadSvg.appendChild(car);
+  }
+  let stripeOffset=0;
+  function updateRoad(){
+    stripeOffset = (stripeOffset + speed*DT*40) % 50;
+    if(stripeOffset<0) stripeOffset+=50;
+    roadStripes.forEach((s,i)=>{ let x = ((i*50 - stripeOffset) % 400 + 400) % 400 - 25; s.setAttribute('x', x); });
+    rollWarning.classList.toggle('show', mode==='hill' && speed < -0.15);
+  }
+
+  function render(){
+    const rpmFrac = clamp(rpm/REDLINE,0,1.05);
+    rpmArc.setAttribute('stroke-dasharray', (rpmFrac*100)+' 100');
+    rpmNeedle.style.transform = 'rotate('+(-90+clamp(rpmFrac,0,1.05)*180)+'deg)';
+    rpmVal.textContent = Math.round(rpm/100);
+
+    const kmh = speed*3.6;
+    const spdFrac = clamp(Math.abs(kmh)/180,0,1);
+    spdArc.setAttribute('stroke-dasharray',(spdFrac*100)+' 100');
+    spdNeedle.style.transform='rotate('+(-90+spdFrac*180)+'deg)';
+    spdVal.textContent = Math.round(Math.abs(kmh));
+
+    ignitionBtn.classList.toggle('on', ignition);
+    ignitionBtn.classList.toggle('stalled', stalled && !ignition);
+    ignitionLabel.textContent = ignition ? 'Stop' : (stalled ? 'Restart' : 'Start');
+
+    updateRoad();
+    updateAudio();
+
+    if(mode==='hill' && rollSinceStop>0.05 && speed<-0.03){
+      setMsg('You are rolling backwards, bring the clutch to the bite point and add gas (or set the handbrake) before releasing the brake.','danger');
+    }
+  }
+
+  buildRoad();
+  placeKnobAtGear('N');
+  window.addEventListener('resize', ()=>placeKnobAtGear(gear));
+  setInterval(tick, DT*1000);
+})();
+</script>
+</body>
+</html>
